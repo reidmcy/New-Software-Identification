@@ -25,7 +25,6 @@ dataDict = {
 
 w2vFname = 'word2vec.bin'
 pickleFname = 'dfPickles.p'
-modelsSuffix = 'pt'
 regenW2V = False
 
 eta = 0.001

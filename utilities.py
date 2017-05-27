@@ -1,6 +1,8 @@
 import gensim
 import pandas
 import nltk
+import matplotlib.pyplot as plt
+import seaborn
 
 import pickle
 import os.path
@@ -74,3 +76,38 @@ def preprocesing(dataDir, dataDict, modelsDir, w2vFname, pickleFname, regen = Fa
         dfs = pickle.loads(bytes_in)
 
     return dfs, w2v
+
+def compareRows(rows, N, useTitle = True):
+    fig, axes = plt.subplots(figsize = (20,15),
+                             nrows = len(rows) + 1,
+                             gridspec_kw = {'height_ratios': [5] * len(rows) + [1]})
+    aLst = []
+    for i, row in enumerate(rows):
+        abVec, tiVec, yVec = main.varsFromRow(row)
+        if useTitle:
+            outLSTM, (h_n, c_n) = N.lstmTi(tiVec)
+            s = row['title']
+        else:
+            outLSTM, (h_n, c_n) = N.lstmAb(abVec)
+            s = row['abstract']
+        out = N(abVec, tiVec)
+        probNeg = np.exp(out.data[0][0])
+        probPos = np.exp(out.data[0][1])
+        probNeg = probNeg / (probNeg + probPos)
+        probPos = probPos / (probNeg + probPos)
+
+        a = np.array(outLSTM.data.tolist())
+        aLst.append(a[0, -1:, :])
+        a = a[:,:30,:]
+        df = pandas.DataFrame(a[0, :, :])
+        df.index = nltk.word_tokenize(s)[:a.shape[1]]
+        seaborn.heatmap(df, ax = axes[i])
+        axes[i].set_title("Article Title: '{}'\n$P_{{negative}} = {:.4f}, P_{{positive}} = {:.4f}$".format(row['title'], probNeg, probPos))
+        axes[i].set_xticklabels([])
+
+
+    dfDiff = pandas.DataFrame(aLst[0] - aLst[1])
+    seaborn.heatmap(dfDiff, ax = axes[-1], xticklabels = [i if i in np.linspace(0, aLst[0].shape[1] - 1, num = 10, dtype='int') else '' for i in range(aLst[0].shape[1])])
+    axes[-1].set_title('Difference in Final Output Vectors')
+
+    return fig, axes
