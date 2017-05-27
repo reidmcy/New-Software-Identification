@@ -4,121 +4,128 @@ import nltk
 import numpy as np
 
 import neuralnet
-
+import sklearn.utils
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
+import utilities
+
 import os
+import pickle
 
 dataDir = 'data'
 modelsDir = 'models'
 
-littleFile = 'little.tsv'
-someFile = 'some.tsv'
-mostlyFile = 'mostly.tsv'
+dataDict = {
+    'little' : 'little.tsv',
+    'some' : 'some.tsv',
+    'most' : 'mostly.tsv',
+}
 
 w2vFname = 'word2vec.bin'
-
+pickleFname = 'dfPickles.p'
+modelsSuffix = 'pt'
 regenW2V = False
 
 eta = 0.001
+testingInterval = 500
+windowSize = 20
+maxIterations = 50000
 
-def tokenizer(target):
-    return [t for t in nltk.word_tokenize(target.lower()) if t != '.']
+def getTrainTest(df, splitVal):
+    """Creates a holdout set"""
+    n = len(df)
+    indices = np.random.permutation(df.index)
+    testInd, trainInd = indices[:int(n * splitVal)], indices[int(n * splitVal):]
+    return df[trainInd].copy(), df[testInd].copy()
 
-def sentinizer(sent):
-    return [tokenizer(s) for s in nltk.sent_tokenize(sent)]
+def varsFromRow(row):
+    abVec = Variable(torch.from_numpy(np.stack(row['abstract_tokenize'])).unsqueeze(0)).cuda()
 
-def genVecSeq(target, model):
-    tokens = tokenizer(target)
-    vecs = []
-    for t in tokens:
-        try:
-            vecs.append(model.wv[t])
-        except KeyError:
-            #print(t)
-            pass
-    return vecs
+    tiVec = Variable(torch.from_numpy(np.stack(row['title_tokenize'])).unsqueeze(0)).cuda()
 
-def genWord2Vec(*dfs):
-    vocab = []
-    for df in dfs:
-        vocab += list(df['title'].apply(lambda x: x.lower().split()))
-        vocab += df['abstract'].apply(sentinizer).sum()
+    yVec = Variable(torch.from_numpy(row['vals'])).cuda()
 
-    model = gensim.models.Word2Vec(vocab,
-        hs = 1, #Hierarchical softmax is better for infrequent words
-        size = 200, #Dim
-        window = 5, #Might want to increase this
-        min_count = 0,
-        max_vocab_size = None,
-        workers = 8, #My machine has 8 hyperthreads
-        )
-    return model
+    return abVec, tiVec, yVec
 
-def trainModel(dfPostive, dfNegative):
+def trainModel(dfPostive, dfNegative, numEpoch, numBatch):
     dfPostive['vals'] = [np.array([1]) for i in range(len(dfPostive))]
     dfNegative['vals'] = [np.array([0]) for i in range(len(dfNegative))]
 
-    df = dfPostive.append(dfNegative, ignore_index=True)
+    print("{} postive".format(len(dfPostive)))
+    print("{} negative".format(len(dfNegative)))
 
-    from sklearn.utils import shuffle
-    df = shuffle(df)
+    df = dfPostive.append(dfNegative, ignore_index=True).append(dfPostive, ignore_index=True)
+    df = sklearn.utils.shuffle(df)
+    df.index = range(len(df))
+    splitIndex = len(df) // 10
 
+    dfTrain = df[:-splitIndex]
+    dfTest = df[-splitIndex:]
 
-    N = neuralnet.BiRNN(200, 128, 2)
+    dfTest.index = range(len(dfTest))
+
+    N = neuralnet.BiRNN(200, 256, 2)
     N.cuda()
 
     #criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(N.parameters(), lr=eta)
 
+    try:
+        for i in range(numEpoch):
+            for j in range(numBatch):
 
-    for i in range(100):
-        losses = []
-        for j in range(100):
-            row = np.random.np.random.randint(0, len(df))
+                row = dfTrain.sample(n = 1).iloc[0]
 
-            xVec = Variable(torch.from_numpy(np.stack(df['abstract_tokenize'][row])).unsqueeze(0)).cuda()
+                abVec, tiVec, yVec = varsFromRow(row)
 
-            yVec = Variable(torch.from_numpy(df['vals'][row])).cuda()
-            #print(yVec.data)
 
-            optimizer.zero_grad()
-            outputs = N(xVec)
-            #print(outputs)
-            loss = torch.nn.functional.cross_entropy(outputs, yVec)
-            loss.backward()
-            optimizer.step()
-            losses.append(loss.data[0])
-        print(i, end = ' : ')
-        print(np.mean(losses))
+                optimizer.zero_grad()
+                outputs = N(abVec, tiVec)
+                loss = torch.nn.functional.cross_entropy(outputs, yVec)
+                loss.backward()
+                optimizer.step()
+
+            losses = []
+            errs = []
+            detectionRate = []
+            falsePositiveRate = []
+            for j in range(len(dfTest)):
+                row = dfTest.iloc[j]
+
+                abVec, tiVec, yVec = varsFromRow(row)
+
+                outputs = N(abVec, tiVec)
+
+                loss = torch.nn.functional.cross_entropy(outputs, yVec)
+                losses.append(loss.data[0])
+                pred = outputs.data.max(1)[1]
+
+                errs.append(1 - pred.eq(yVec.data)[0][0])
+
+                if dfTest['vals'][j] == 1:
+                    detectionRate.append(pred.eq(yVec.data)[0][0])
+                else:
+                    falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
+
+            print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}".format(i, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate)))
+    except KeyboardInterrupt:
+        print("Exiting and saving")
+    N.cpu()
     return N
-
 
 def main():
     os.makedirs(dataDir, exist_ok = True)
     os.makedirs(modelsDir, exist_ok = True)
 
-    dfs = {
-        'little' : pandas.read_csv('data/little.tsv', sep='\t'),
-        #'some' : pandas.read_csv('data/some.tsv', sep='\t'),
-        'most' : pandas.read_csv('data/mostly.tsv', sep='\t'),
-    }
+    dfs, w2v = utilities.preprocesing(dataDir, dataDict, modelsDir, w2vFname, pickleFname, regen = regenW2V)
 
-    if regenW2V:
-        print("Generating Word2Vec")
-        w2v = genWord2Vec(*dfs.values())
-        w2v.save('{}/{}'.format(modelsDir, w2vFname))
-    else:
-        w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
-    print(w2v)
-    for name, df in dfs.items():
-        print("Generating vecs for: {}".format(name))
-        df['title_tokenize'] = df['title'].apply(lambda x : genVecSeq(x, w2v))
-        df['abstract_tokenize'] = df['abstract'].apply(lambda x : genVecSeq(x, w2v))
+    Net = trainModel(dfs['most'], dfs['little'], 500, 500)
 
-    trainModel(dfs['most'], dfs['little'])
+    #save model
+    with open("{}/{}.{}".format(modelsDir, repr(Net), modelsSuffix), 'wb') as f:
+        torch.save(Net, f)
 
 if __name__ == '__main__':
     main()
