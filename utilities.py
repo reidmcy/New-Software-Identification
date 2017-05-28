@@ -3,6 +3,8 @@ import pandas
 import nltk
 import matplotlib.pyplot as plt
 import seaborn
+import numpy as np
+import yaml
 
 import pickle
 import os.path
@@ -11,15 +13,23 @@ import os.path
 max_bytes = 2**31 - 1
 
 def tokenizer(target):
-    return [t for t in nltk.word_tokenize(target.lower()) if t != '.']
+    return nltk.word_tokenize(target.lower())
 
 def sentinizer(sent):
-    return [tokenizer(s) for s in nltk.sent_tokenize(sent)]
+    try:
+        return [tokenizer(s) for s in nltk.sent_tokenize(sent)]
+    except TypeError:
+        #Missing abstract
+        return []
 
 def genVecSeq(target, model):
-    tokens = tokenizer(target)
     vecs = []
-    for t in tokens:
+    try:
+        if isinstance(target[0], list):
+            target = sum(target, [])
+    except IndexError:
+        pass
+    for t in target:
         try:
             vecs.append(model.wv[t])
         except KeyError:
@@ -27,11 +37,9 @@ def genVecSeq(target, model):
             pass
     return vecs
 
-def genWord2Vec(*dfs):
-    vocab = []
-    for df in dfs:
-        vocab += list(df['title'].apply(lambda x: x.lower().split()))
-        vocab += df['abstract'].apply(sentinizer).sum()
+def genWord2Vec(df):
+    vocab = list(df['title_tokens'])
+    vocab += df['abstract_tokens'].sum()
 
     model = gensim.models.Word2Vec(vocab,
         hs = 1, #Hierarchical softmax is slower, but better for infrequent words
@@ -43,39 +51,66 @@ def genWord2Vec(*dfs):
         )
     return model
 
-def preprocesing(dataDir, dataDict, modelsDir, w2vFname, pickleFname, regen = False):
+def preprocesing(dataDir, rawFname, modelsDir, w2vFname, pickleFname, regen = False):
     if regen:
-        print("Loading Data")
-        dfs = {k : pandas.read_csv('{}/{}'.format(dataDir, v), sep='\t') for k, v in dataDict.items()}
+        df = pandas.read_csv("{}/{}".format(dataDir, rawFname),
+            sep='\t',
+            dtype={'isbn' : np.dtype('unicode')}, #Supressing an error message
+            )
 
-        print("Generating Word2Vec")
-        w2v = genWord2Vec(*dfs.values())
-        w2v.save('{}/{}'.format(modelsDir, w2vFname))
+        print("Tokenizing Titles")
+        df['title_tokens'] = df['title'].apply(tokenizer)
 
-        for name, df in dfs.items():
-            print("Generating vecs for: {}".format(name))
-            df['title_tokenize'] = df['title'].apply(lambda x : genVecSeq(x, w2v))
-            df['abstract_tokenize'] = df['abstract'].apply(lambda x : genVecSeq(x, w2v))
+        print("Tokenizing Abstracts")
+        df['abstract_tokens'] = df['abstract'].apply(sentinizer)
 
-        print("Saving pickle")
-        bytes_out = pickle.dumps(dfs)
+        print("Generating Word2Vec model")
+        #w2v = genWord2Vec(df)
+        #w2v.save('{}/{}'.format(modelsDir, w2vFname))
+        w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
+        """
+        print("Generating word vectors")
+        df['title_vecs'] = df['title_tokens'].apply(lambda x : genVecSeq(x, w2v))
+        df['abstract_vecs'] = df['abstract_tokens'].apply(lambda x : genVecSeq(x, w2v))
+        """
+
+        print("Saving DF as pickle")
+        bytes_out = pickle.dumps(df)
         n_bytes = len(bytes_out)
         with open('{}/{}'.format(modelsDir, pickleFname), 'wb') as f:
             for idx in range(0, n_bytes, max_bytes):
                 f.write(bytes_out[idx:idx+max_bytes])
-
     else:
+        print("Loading W2V")
         w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
 
-        print("Loading DFs")
+        print("Loading DF")
         bytes_in = bytearray(0)
         input_size = os.path.getsize('{}/{}'.format(modelsDir, pickleFname))
         with open('{}/{}'.format(modelsDir, pickleFname), 'rb') as f:
             for _ in range(0, input_size, max_bytes):
                 bytes_in += f.read(max_bytes)
-        dfs = pickle.loads(bytes_in)
+        df = pickle.loads(bytes_in)
+    return df, w2v
 
-    return dfs, w2v
+def getTrainTest(df, dataDir, manualFname, splitRatio = .1):
+    with open("{}/{}".format(dataDir, manualFname)) as f:
+        manualDict = yaml.load(f.read())
+
+
+    dfClassified = df.loc[df['source'].isin(manualDict['little'] + manualDict['most'])]
+
+    #dfClassified = df[df['source'] in manualDict['little'] + manualDict['most']].copy()
+
+    dfClassified['class'] = [1 if s in manualDict['most'] else 0 for s in dfClassified['source']]
+
+    dfTest = dfClassified.sample(frac = splitRatio)
+    dfTrain = dfClassified.loc[set(dfClassified.index) - set(dfTest.index)]
+
+    dfTrain.index = range(len(dfTrain))
+    dfTest.index = range(len(dfTest))
+
+    return dfTrain, dfTest
 
 def compareRows(rows, N, useTitle = True):
     fig, axes = plt.subplots(figsize = (20,15),
