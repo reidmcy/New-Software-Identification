@@ -1,44 +1,36 @@
+import torch
+import torch.optim
+import torch.nn
+import torch.autograd
+import torch.nn.functional
+import numpy as np
 
-def varsFromRow(row):
-    abVec = Variable(torch.from_numpy(np.stack(row['abstract_tokenize'])).unsqueeze(0)).cuda()
+import utilities
 
-    tiVec = Variable(torch.from_numpy(np.stack(row['title_tokenize'])).unsqueeze(0)).cuda()
+def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
 
-    yVec = Variable(torch.from_numpy(row['vals'])).cuda()
+    trainNp = len([c for c in dfTrain['class'] if c == 1])
+    trainNn = len([c for c in dfTrain['class'] if c == 0])
+    testNp = len([c for c in dfTest['class'] if c == 1])
+    testNn = len([c for c in dfTest['class'] if c == 0])
+    print("Training: {} postive, {} negative, {:.3f} percent".format(trainNp, trainNn, trainNp / (trainNn + trainNp)))
+    print("Testing: {} postive, {} negative, {:.3f} percent".format(testNp, testNn, testNp / (testNn + testNp)))
 
-    return abVec, tiVec, yVec
-
-def trainModel(dfPostive, dfNegative, numEpoch, numBatch):
-    dfPostive['vals'] = [np.array([1]) for i in range(len(dfPostive))]
-    dfNegative['vals'] = [np.array([0]) for i in range(len(dfNegative))]
-
-    print("{} postive".format(len(dfPostive)))
-    print("{} negative".format(len(dfNegative)))
-
-    df = dfPostive.append(dfNegative, ignore_index=True).append(dfPostive, ignore_index=True)
-    df = sklearn.utils.shuffle(df)
-    df.index = range(len(df))
-    splitIndex = len(df) // 10
-
-    dfTrain = df[:-splitIndex]
-    dfTest = df[-splitIndex:]
-
-    dfTest.index = range(len(dfTest))
-
-    N = neuralnet.BiRNN(200, 256, 2)
     N.cuda()
 
-    #criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(N.parameters(), lr=eta)
+    optimizer = torch.optim.Adam(N.parameters(), lr=N.eta)
+
+    nTest = len(dfTest)
 
     try:
-        for i in range(numEpoch):
-            for j in range(numBatch):
-
+        for i in range(numEpochs):
+            for j in range(epochSize):
+                #import pdb; pdb.set_trace()
+                if j % (epochSize // 20) == 0:
+                    print("Epoch {}, Training: {:.0f}%".format(i, (j / epochSize) * 100), end = '\r')
                 row = dfTrain.sample(n = 1).iloc[0]
 
                 abVec, tiVec, yVec = varsFromRow(row)
-
 
                 optimizer.zero_grad()
                 outputs = N(abVec, tiVec)
@@ -50,7 +42,11 @@ def trainModel(dfPostive, dfNegative, numEpoch, numBatch):
             errs = []
             detectionRate = []
             falsePositiveRate = []
-            for j in range(len(dfTest)):
+
+            for j in range(nTest):
+                if j % (nTest // 20) == 0:
+                    print("Epoch {}, Testing: {:.0f}%   ".format(i, (j / nTest) * 100), end = '\r')
+
                 row = dfTest.iloc[j]
 
                 abVec, tiVec, yVec = varsFromRow(row)
@@ -63,13 +59,17 @@ def trainModel(dfPostive, dfNegative, numEpoch, numBatch):
 
                 errs.append(1 - pred.eq(yVec.data)[0][0])
 
-                if dfTest['vals'][j] == 1:
+                if dfTest['class'][j] == 1:
                     detectionRate.append(pred.eq(yVec.data)[0][0])
                 else:
                     falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
 
             print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}".format(i, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate)))
-    except KeyboardInterrupt:
-        print("Exiting and saving")
+
+            N.epoch += 1
+            N.save()
+
+    except KeyboardInterrupt as e:
+        print("Exiting")
+        return e
     N.cpu()
-    return N

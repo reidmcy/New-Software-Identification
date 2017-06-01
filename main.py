@@ -26,7 +26,7 @@ pickleFname = 'dfPickles.p'
 regenW2V = False
 
 eta = 0.001
-numEpochs = 500
+numEpochs = 50
 epochSize = 500
 
 def main():
@@ -35,18 +35,21 @@ def main():
 
     df, w2v = utilities.preprocesing(dataDir, rawFname, modelsDir, w2vFname, pickleFname, regen = regenW2V)
 
-    dfTrain, dfTest = utilities.getTrainTest(df, dataDir, manualFname)
 
-    print(len([c for c in dfTrain['class'] if c == 1]))
-    print(len([c for c in dfTrain['class'] if c == 0]))
-    print(len([c for c in dfTest['class'] if c == 1]))
-    print(len([c for c in dfTest['class'] if c == 0]))
-    #print(dfTrain)
-    #print(dfTest)
+    dfTrain, dfTest = utilities.getTrainTest(df, dataDir, manualFname, w2v)
 
-    #Net = training.trainModel(df, w2v, eta, epochSize, numEpochs)
+    Net = neuralnet.BiRNN(200, 256, 2, eta, modelsDir)
 
-    #Net.save(modelsDir)
+    e = training.trainModel(Net, dfTest, dfTrain, epochSize, numEpochs)
+
+    print("Saving")
+    Net.save()
+
+    if e is not None:
+        print("Error")
+        raise e
+    else:
+        print("Done")
 
 if __name__ == '__main__':
     main()

@@ -5,6 +5,11 @@ import matplotlib.pyplot as plt
 import seaborn
 import numpy as np
 import yaml
+import torch
+import torch.optim
+import torch.nn
+import torch.autograd
+import torch.nn.functional
 
 import pickle
 import os.path
@@ -33,9 +38,31 @@ def genVecSeq(target, model):
         try:
             vecs.append(model.wv[t])
         except KeyError:
-            #print(t)
+            print("KeyError: {}".format(repr(t)))
             pass
     return vecs
+
+def varsFromRow(row, w2v = None):
+    if w2v is None:
+        abVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['abstract_vecs'])).unsqueeze(0)).cuda()
+
+        tiVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['title_vecs'])).unsqueeze(0)).cuda()
+
+
+        yVec = torch.autograd.Variable(torch.from_numpy(np.array([row['class']]))).cuda()
+    else:
+        try:
+            abVec = torch.autograd.Variable(torch.from_numpy(np.stack(genVecSeq(row['abstract_tokens'], w2v))).unsqueeze(0)).cuda()
+        except ValueError:
+            abVec = torch.autograd.Variable(torch.from_numpy(np.zeros([1, 200])).unsqueeze(0)).cuda()
+
+        try:
+            tiVec = torch.autograd.Variable(torch.from_numpy(np.stack(genVecSeq(row['title_tokens'], w2v))).unsqueeze(0)).cuda()
+        except ValueError:
+            tiVec = torch.autograd.Variable(torch.from_numpy(np.zeros([1, 200])).unsqueeze(0)).cuda()
+        yVec = torch.autograd.Variable(torch.from_numpy(np.array([-1]))).cuda()
+
+    return abVec, tiVec, yVec
 
 def genWord2Vec(df):
     vocab = list(df['title_tokens'])
@@ -65,14 +92,9 @@ def preprocesing(dataDir, rawFname, modelsDir, w2vFname, pickleFname, regen = Fa
         df['abstract_tokens'] = df['abstract'].apply(sentinizer)
 
         print("Generating Word2Vec model")
-        #w2v = genWord2Vec(df)
-        #w2v.save('{}/{}'.format(modelsDir, w2vFname))
+        w2v = genWord2Vec(df)
+        w2v.save('{}/{}'.format(modelsDir, w2vFname))
         w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
-        """
-        print("Generating word vectors")
-        df['title_vecs'] = df['title_tokens'].apply(lambda x : genVecSeq(x, w2v))
-        df['abstract_vecs'] = df['abstract_tokens'].apply(lambda x : genVecSeq(x, w2v))
-        """
 
         print("Saving DF as pickle")
         bytes_out = pickle.dumps(df)
@@ -93,24 +115,31 @@ def preprocesing(dataDir, rawFname, modelsDir, w2vFname, pickleFname, regen = Fa
         df = pickle.loads(bytes_in)
     return df, w2v
 
-def getTrainTest(df, dataDir, manualFname, splitRatio = .1):
+def getTrainTest(df, dataDir, manualFname, w2v, splitRatio = .1):
+    print("Generating training and testing sets")
     with open("{}/{}".format(dataDir, manualFname)) as f:
         manualDict = yaml.load(f.read())
 
 
-    dfClassified = df.loc[df['source'].isin(manualDict['little'] + manualDict['most'])]
-
-    #dfClassified = df[df['source'] in manualDict['little'] + manualDict['most']].copy()
+    dfClassified = df.loc[df['source'].isin(manualDict['little'] + manualDict['most'])].copy()
 
     dfClassified['class'] = [1 if s in manualDict['most'] else 0 for s in dfClassified['source']]
+
+    print("Generating word vectors")
+    dfClassified['title_vecs'] = dfClassified['title_tokens'].apply(lambda x : genVecSeq(x, w2v))
+    dfClassified['abstract_vecs'] = dfClassified['abstract_tokens'].apply(lambda x : genVecSeq(x, w2v))
 
     dfTest = dfClassified.sample(frac = splitRatio)
     dfTrain = dfClassified.loc[set(dfClassified.index) - set(dfTest.index)]
 
+    print("Enriching training set")
+
+    dfTrain = dfTrain.append(dfTrain.loc[dfTrain['class'] == 1])
+
     dfTrain.index = range(len(dfTrain))
     dfTest.index = range(len(dfTest))
 
-    return dfTrain, dfTest
+    return dfTrain.copy(), dfTest.copy()
 
 def compareRows(rows, N, useTitle = True):
     fig, axes = plt.subplots(figsize = (20,15),
@@ -118,7 +147,7 @@ def compareRows(rows, N, useTitle = True):
                              gridspec_kw = {'height_ratios': [5] * len(rows) + [1]})
     aLst = []
     for i, row in enumerate(rows):
-        abVec, tiVec, yVec = main.varsFromRow(row)
+        abVec, tiVec, yVec = varsFromRow(row)
         if useTitle:
             outLSTM, (h_n, c_n) = N.lstmTi(tiVec)
             s = row['title']
