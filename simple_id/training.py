@@ -5,8 +5,9 @@ import torch.nn
 import torch.autograd
 import torch.nn.functional
 import numpy as np
+import time
 
-import utilities
+from .utilities import varsFromRow
 
 def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
 
@@ -17,7 +18,7 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
     print("Training: {} postive, {} negative, {:.3f} percent".format(trainNp, trainNn, trainNp / (trainNn + trainNp)))
     print("Testing: {} postive, {} negative, {:.3f} percent".format(testNp, testNn, testNp / (testNn + testNp)))
 
-    if torch.cuda.is_available()
+    if torch.cuda.is_available():
         N.cuda()
 
     optimizer = torch.optim.Adam(N.parameters(), lr=N.eta)
@@ -26,12 +27,18 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
 
     try:
         for i in range(numEpochs):
+            tstart = time.time()
             for j in range(epochSize):
                 if j % (epochSize // 20) == 0:
-                    print("Epoch {}, Training: {:.0f}%".format(i, (j / epochSize) * 100), end = '\r')
+                    eta = (time.time() - tstart) / (j + 1) * (epochSize - j)
+                    print("Training {}: {:.1f}%, ETA {:.0f}m {:.1f}s".format(j,
+                                                    j / epochSize * 100,
+                                                    eta // 60,
+                                                    eta % 60).ljust(80)
+                                                   ,end = '\r')
                 row = dfTrain.sample(n = 1).iloc[0]
                 try:
-                    abVec, tiVec, yVec = utilities.varsFromRow(row)
+                    abVec, tiVec, yVec = varsFromRow(row)
                 except:
                     #TODO: Remove this or make it nicer
                     print()
@@ -39,6 +46,7 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                     print("Typing 'N.save()' will save the current model")
                     import pdb; pdb.set_trace()
                 optimizer.zero_grad()
+                #import pdb; pdb.set_trace()
                 outputs = N(abVec, tiVec)
                 #TODO: Test other losses
                 loss = torch.nn.functional.cross_entropy(outputs, yVec)
@@ -50,13 +58,19 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
             detectionRate = []
             falsePositiveRate = []
 
+            tstart = time.time()
             for j in range(nTest):
                 if j % (nTest // 20) == 0:
-                    print("Epoch {}, Testing: {:.0f}%   ".format(i, (j / nTest) * 100), end = '\r')
+                    eta = (time.time() - tstart) / (j + 1) * (epochSize - j)
+                    print("Testing {}: {:.1f}%, ETA {:.0f}m {:.1f}s".format(j,
+                                                    j / epochSize * 100,
+                                                    eta // 60,
+                                                    eta % 60).ljust(80)
+                                                   ,end = '\r')
 
                 row = dfTest.iloc[j]
 
-                abVec, tiVec, yVec = utilities.varsFromRow(row)
+                abVec, tiVec, yVec = varsFromRow(row)
 
                 outputs = N(abVec, tiVec)
 
@@ -71,7 +85,7 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                 else:
                     falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
 
-            print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}".format(i, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate)))
+            print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}".format(i, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate)).ljust(80))
 
             N.epoch += 1
             N.save()

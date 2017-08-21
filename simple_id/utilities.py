@@ -14,6 +14,7 @@ import torch.nn.functional
 import pickle
 import os.path
 
+#For limitation (bug) in pickle
 max_bytes = 2**31 - 1
 
 def tokenizer(target):
@@ -45,6 +46,10 @@ def genVecSeq(target, model):
     return vecs
 
 def varsFromRow(row, w2v = None):
+    if 'title_tokens' not in row:
+        row['title_tokens'] = tokenizer(row['title'])
+    if 'abstract_tokens' not in row:
+        row['abstract_tokens'] = sentinizer(row['abstract'])
     if w2v is None:
         abVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['abstract_vecs'])).unsqueeze(0))
 
@@ -64,27 +69,27 @@ def varsFromRow(row, w2v = None):
         yVec = torch.autograd.Variable(torch.from_numpy(np.array([-1])))
 
     if torch.cuda.is_available():
-        abVec.cuda()
-        tiVec.cuda()
-        yVec.cuda()
+        abVec = abVec.cuda()
+        tiVec = tiVec.cuda()
+        yVec = yVec.cuda()
 
     return abVec, tiVec, yVec
 
-def genWord2Vec(df):
+def genWord2Vec(df, w2vDim):
     vocab = list(df['title_tokens'])
     vocab += df['abstract_tokens'].sum()
 
     model = gensim.models.Word2Vec(vocab,
         hs = 1, #Hierarchical softmax is slower, but better for infrequent words
-        size = 200, #Dim
+        size = w2vDim, #Dim
         window = 5, #Might want to increase this
         min_count = 0,
         max_vocab_size = None,
-        workers = 8, #My machine has 8 hyperthreads
+        workers = 8, #My machine has 8 hyperthreads TODO: Make dynamic
         )
     return model
 
-def preprocesing(df, outputsDir, w2vFname, pickleFname):
+def preprocesing(df, outputsDir, w2vFname, pickleFname, w2vDim):
 
     picklePath = '{}/{}'.format(outputsDir, pickleFname)
     w2vPath = '{}/{}'.format(outputsDir, w2vFname)
@@ -116,13 +121,11 @@ def preprocesing(df, outputsDir, w2vFname, pickleFname):
         w2v = gensim.models.Word2Vec.load(w2vPath)
     else:
         print("Generating Word2Vec model, with {} rows of data".format(len(df)))
-        w2v = genWord2Vec(df)
+        w2v = genWord2Vec(df, w2vDim)
         w2v.save(w2vPath)
-        #w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
     return df, w2v
 
 def getTrainTest(df, w2v, splitRatio = .1):
-#df, dataDir, manualFname, w2v, splitRatio = .1):
     print("Generating training and testing sets")
 
     dfClassified = df[df['class'] == 1]

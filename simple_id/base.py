@@ -1,17 +1,21 @@
 import os
+import torch
+import time
 from .utilities import preprocesing, getTrainTest
 from .neuralnet import BiRNN
 from .training import trainModel
+import gensim
+import pandas
 
-def createClassifier(df, outputsDir = 'models', w2vFname = 'word2vec.bin', pickleFname = 'dfPickles.p', trainFname = 'training.csv', testFname = 'testing.csv', stepSize = .001, epochSize = 500, numEpochs = 50):
+def createClassifier(df, nnWidth = 128, nnHeight = 2, stepSize = .001, w2vDim = 200, outputsDir = 'models', w2vFname = 'word2vec.bin', pickleFname = 'dfPickles.p', trainFname = 'training.csv', testFname = 'testing.csv', epochSize = 500, numEpochs = 50):
     #TODO: Explain defaults
 
     os.makedirs(outputsDir, exist_ok = True)
 
-    #TODO: check df has right column names
+    #TODO: Check df has right column names / allow different names
     #Currently using: 'title', 'abstract' and 'class'
 
-    df, w2v = preprocesing(df, outputsDir, w2vFname, pickleFname)
+    df, w2v = preprocesing(df, outputsDir, w2vFname, pickleFname, w2vDim)
 
     #Currently assuming postives are rarer than negatives
     dfTrain, dfTest = getTrainTest(df, w2v, splitRatio = .1)
@@ -21,20 +25,57 @@ def createClassifier(df, outputsDir = 'models', w2vFname = 'word2vec.bin', pickl
     dfTrain[['authors', 'title', 'class']].to_csv("{}/{}".format(outputsDir, trainFname))
 
     #TODO: Test other NN sizes
-    Net = BiRNN(200, #W2V size
-                256, #Width
-                2, #Height
+    Net = BiRNN(w2vDim, #W2V size
+                nnWidth, #Width
+                nnHeight, #Height
                 stepSize, #eta
                 outputsDir #Autosave location
                 )
 
     e = trainModel(Net, dfTest, dfTrain, epochSize, numEpochs)
 
-    print("Done {} Epochs saving final model".format(numEpochs))
+    print("Done {} Epochs saving final model".format(Net.epoch))
     Net.save()
 
-def loadModel():
+    if e is not None:
+        print("Error: {}".format(e))
+        raise e
+    else:
+        print("Done")
+    return Net
+
+def loadModel(modelPath):
     with open(modelPath, 'rb') as f:
         N = torch.load(f)
     if torch.cuda.is_available():
         N.cuda()
+    return N
+
+def analyseDF(df, model, w2vFname = 'word2vec.bin', outputsDir = 'models'):
+    try:
+        w2vPath = '{}/{}'.format(outputsDir, w2vFname)
+        w2v = gensim.models.Word2Vec.load(w2vPath)
+    except FileNotFoundError:
+        try:
+            w2v = gensim.models.Word2Vec.load(w2vFname)
+        except FileNotFoundError:
+            raise FileNotFoundError("W2V file missing, try running this from the same directory as the model was generated or give the W2V files path as `w2vFname`")
+
+    results = []
+    indices = []
+    tstart = time.time()
+    for i, (r_index, row) in enumerate(df.iterrows()):
+        eta = (time.time() - tstart) / (i + 1) * (len(df) - i)
+        print("Analysing {}: {:.1f}%, ETA {:.0f}m {:.1f}s".format(i,
+                                                    i / len(df) * 100,
+                                                    eta // 60,
+                                                    eta % 60).ljust(80)
+                                                  , end = '\r')
+        indices.append(r_index)
+        results.append(model.predictRow(row, w2v = w2v))
+    deltaT = time.time() - tstart
+    print("Done {} rows in {:.0f}m {:.1f}s, {:.1f}s per row".format(len(df),
+                                                            deltaT // 60,
+                                                            deltaT % 60,
+                                                            len(df) / deltaT).ljust(80))
+    return pandas.DataFrame(results, index = indices)

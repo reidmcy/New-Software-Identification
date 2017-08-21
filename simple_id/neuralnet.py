@@ -53,12 +53,10 @@ class BiRNN(torch.nn.Module):
     def predictRow(self, row, w2v = None):
         if w2v is None:
             abVec, tiVec, yVec = varsFromRow(row)
-        elif 'title_vecs' in row:
-            abVec, tiVec, yVec = varsFromRow(row, w2v)
         else:
-            raise ValueError("The W2V embedding has to be provided either in the row or as the model.")
+            abVec, tiVec, yVec = varsFromRow(row, w2v)
 
-        out = N(abVec, tiVec)
+        out = self(abVec, tiVec)
         probNeg = np.exp(out.data[0][0])
         probPos = np.exp(out.data[0][1])
         probNeg = probNeg / (probNeg + probPos)
