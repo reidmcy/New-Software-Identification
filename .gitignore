@@ -2,8 +2,11 @@
 *.pt
 models/
 models_old/
+images/
+data/
 Assignment-3 alias
 InitialResults/
+outputs/
 
 *.bin
 *.gz
