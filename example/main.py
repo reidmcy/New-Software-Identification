@@ -20,7 +20,7 @@ def main():
     dfRets = simple_id.analyseDF(df, N)
 
     #Now we can combine and save the results
-    dfRets.join(df).to_csv('rets.csv')
+    dfRets.join(df).to_csv('results.csv')
 
 if __name__ == '__main__':
     main()
