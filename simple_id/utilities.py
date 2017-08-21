@@ -1,10 +1,7 @@
 import gensim
 import pandas
 import nltk
-import matplotlib.pyplot as plt
-import seaborn
 import numpy as np
-import yaml
 import torch
 import torch.optim
 import torch.nn
