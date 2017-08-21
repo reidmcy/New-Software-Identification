@@ -1,4 +1,5 @@
 import torch
+import torch.cuda
 import torch.optim
 import torch.nn
 import torch.autograd
@@ -16,7 +17,8 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
     print("Training: {} postive, {} negative, {:.3f} percent".format(trainNp, trainNn, trainNp / (trainNn + trainNp)))
     print("Testing: {} postive, {} negative, {:.3f} percent".format(testNp, testNn, testNp / (testNn + testNp)))
 
-    N.cuda()
+    if torch.cuda.is_available()
+        N.cuda()
 
     optimizer = torch.optim.Adam(N.parameters(), lr=N.eta)
 
@@ -25,16 +27,20 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
     try:
         for i in range(numEpochs):
             for j in range(epochSize):
-                #import pdb; pdb.set_trace()
                 if j % (epochSize // 20) == 0:
                     print("Epoch {}, Training: {:.0f}%".format(i, (j / epochSize) * 100), end = '\r')
                 row = dfTrain.sample(n = 1).iloc[0]
                 try:
                     abVec, tiVec, yVec = utilities.varsFromRow(row)
                 except:
+                    #TODO: Remove this or make it nicer
+                    print()
+                    print("Error encountered entering debugger")
+                    print("Typing 'N.save()' will save the current model")
                     import pdb; pdb.set_trace()
                 optimizer.zero_grad()
                 outputs = N(abVec, tiVec)
+                #TODO: Test other losses
                 loss = torch.nn.functional.cross_entropy(outputs, yVec)
                 loss.backward()
                 optimizer.step()
@@ -73,4 +79,3 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
     except KeyboardInterrupt as e:
         print("Exiting")
         return e
-    N.cpu()

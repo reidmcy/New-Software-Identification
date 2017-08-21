@@ -14,7 +14,6 @@ import torch.nn.functional
 import pickle
 import os.path
 
-
 max_bytes = 2**31 - 1
 
 def tokenizer(target):
@@ -47,23 +46,27 @@ def genVecSeq(target, model):
 
 def varsFromRow(row, w2v = None):
     if w2v is None:
-        abVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['abstract_vecs'])).unsqueeze(0)).cuda()
+        abVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['abstract_vecs'])).unsqueeze(0))
 
-        tiVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['title_vecs'])).unsqueeze(0)).cuda()
+        tiVec = torch.autograd.Variable(torch.from_numpy(np.stack(row['title_vecs'])).unsqueeze(0))
 
-
-        yVec = torch.autograd.Variable(torch.from_numpy(np.array([row['class']]))).cuda()
+        yVec = torch.autograd.Variable(torch.from_numpy(np.array([row['class']])))
     else:
         try:
-            abVec = torch.autograd.Variable(torch.from_numpy(np.stack(genVecSeq(row['abstract_tokens'], w2v))).unsqueeze(0)).cuda()
+            abVec = torch.autograd.Variable(torch.from_numpy(np.stack(genVecSeq(row['abstract_tokens'], w2v))).unsqueeze(0))
         except ValueError:
-            abVec = torch.autograd.Variable(torch.from_numpy(np.zeros([1, 200])).unsqueeze(0)).cuda()
+            abVec = torch.autograd.Variable(torch.from_numpy(np.zeros([1, 200])).unsqueeze(0))
 
         try:
-            tiVec = torch.autograd.Variable(torch.from_numpy(np.stack(genVecSeq(row['title_tokens'], w2v))).unsqueeze(0)).cuda()
+            tiVec = torch.autograd.Variable(torch.from_numpy(np.stack(genVecSeq(row['title_tokens'], w2v))).unsqueeze(0))
         except ValueError:
-            tiVec = torch.autograd.Variable(torch.from_numpy(np.zeros([1, 200])).unsqueeze(0)).cuda()
-        yVec = torch.autograd.Variable(torch.from_numpy(np.array([-1]))).cuda()
+            tiVec = torch.autograd.Variable(torch.from_numpy(np.zeros([1, 200])).unsqueeze(0))
+        yVec = torch.autograd.Variable(torch.from_numpy(np.array([-1])))
+
+    if torch.cuda.is_available():
+        abVec.cuda()
+        tiVec.cuda()
+        yVec.cuda()
 
     return abVec, tiVec, yVec
 
@@ -81,57 +84,50 @@ def genWord2Vec(df):
         )
     return model
 
-def preprocesing(dataDir, rawFname, modelsDir, w2vFname, pickleFname, regen = False):
-    if regen:
-        df = pandas.read_csv("{}/{}".format(dataDir, rawFname),
-            #sep='\t',
-            dtype={'isbn' : np.dtype('unicode')}, #Supressing an error message
-            )
-        #import pdb; pdb.set_trace()
+def preprocesing(df, outputsDir, w2vFname, pickleFname):
+
+    picklePath = '{}/{}'.format(outputsDir, pickleFname)
+    w2vPath = '{}/{}'.format(outputsDir, w2vFname)
+
+    if os.path.isfile(picklePath):
+        print("Loading tokenized DF")
+        bytes_in = bytearray(0)
+        input_size = os.path.getsize(picklePath)
+        with open(picklePath, 'rb') as f:
+            for _ in range(0, input_size, max_bytes):
+                bytes_in += f.read(max_bytes)
+        df = pickle.loads(bytes_in)
+    else:
         print("Tokenizing Titles")
         df['title_tokens'] = df['title'].apply(tokenizer)
 
         print("Tokenizing Abstracts")
         df['abstract_tokens'] = df['abstract'].apply(sentinizer)
 
-        print("Generating Word2Vec model, with {} rows".format(len(df)))
-        w2v = genWord2Vec(df)
-        w2v.save('{}/{}'.format(modelsDir, w2vFname))
-        w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
-
         print("Saving DF as pickle")
         bytes_out = pickle.dumps(df)
         n_bytes = len(bytes_out)
-        with open('{}/{}'.format(modelsDir, pickleFname), 'wb') as f:
+        with open(picklePath, 'wb') as f:
             for idx in range(0, n_bytes, max_bytes):
                 f.write(bytes_out[idx:idx+max_bytes])
-    else:
-        print("Loading W2V")
-        w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
 
-        print("Loading DF")
-        bytes_in = bytearray(0)
-        input_size = os.path.getsize('{}/{}'.format(modelsDir, pickleFname))
-        with open('{}/{}'.format(modelsDir, pickleFname), 'rb') as f:
-            for _ in range(0, input_size, max_bytes):
-                bytes_in += f.read(max_bytes)
-        df = pickle.loads(bytes_in)
+    if os.path.isfile(w2vPath):
+        print("Loading W2V model")
+        w2v = gensim.models.Word2Vec.load(w2vPath)
+    else:
+        print("Generating Word2Vec model, with {} rows of data".format(len(df)))
+        w2v = genWord2Vec(df)
+        w2v.save(w2vPath)
+        #w2v = gensim.models.Word2Vec.load('{}/{}'.format(modelsDir, w2vFname))
     return df, w2v
 
-def getTrainTest(df, dataDir, manualFname, w2v, splitRatio = .1):
+def getTrainTest(df, w2v, splitRatio = .1):
+#df, dataDir, manualFname, w2v, splitRatio = .1):
     print("Generating training and testing sets")
-    if manualFname is not None:
-        with open("{}/{}".format(dataDir, manualFname)) as f:
-            manualDict = yaml.load(f.read())
 
-        dfClassified = df.loc[df['source'].isin(manualDict['little'] + manualDict['most'])].copy()
-
-        dfClassified['class'] = [1 if s in manualDict['most'] else 0 for s in dfClassified['source']]
-
-    else:
-        dfClassified = df[df['class'] == 1]
-        dfClassified = dfClassified.append(df[df['class'] == 0].sample(int(len(dfClassified) * 2)))
-        dfClassified.index = range(len(dfClassified))
+    dfClassified = df[df['class'] == 1]
+    dfClassified = dfClassified.append(df[df['class'] == 0].sample(int(len(dfClassified) * 2)))
+    dfClassified.index = range(len(dfClassified))
 
     print("Generating word vectors")
     dfClassified['title_vecs'] = dfClassified['title_tokens'].apply(lambda x : genVecSeq(x, w2v))
@@ -139,10 +135,6 @@ def getTrainTest(df, dataDir, manualFname, w2v, splitRatio = .1):
 
     dfTest = dfClassified.sample(frac = splitRatio)
     dfTrain = dfClassified.loc[set(dfClassified.index) - set(dfTest.index)]
-
-    #print("Enriching training set")
-
-    #dfTrain = dfTrain.append(dfTrain.loc[dfTrain['class'] == 1])
 
     dfTrain.index = range(len(dfTrain))
     dfTest.index = range(len(dfTest))

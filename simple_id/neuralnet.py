@@ -1,5 +1,7 @@
 import torch
 import torch.nn
+from .utilities import varsFromRow
+import numpy as np
 
 class BiRNN(torch.nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, eta, saveDir):
@@ -47,3 +49,24 @@ class BiRNN(torch.nn.Module):
             fname = "{}/{}.pt".format(saveDir, repr(self))
         with open(fname, 'wb') as f:
             torch.save(self, f)
+
+    def predictRow(self, row, w2v = None):
+        if w2v is None:
+            abVec, tiVec, yVec = varsFromRow(row)
+        elif 'title_vecs' in row:
+            abVec, tiVec, yVec = varsFromRow(row, w2v)
+        else:
+            raise ValueError("The W2V embedding has to be provided either in the row or as the model.")
+
+        out = N(abVec, tiVec)
+        probNeg = np.exp(out.data[0][0])
+        probPos = np.exp(out.data[0][1])
+        probNeg = probNeg / (probNeg + probPos)
+        probPos = probPos / (probNeg + probPos)
+
+        return {'weightP' : out.data[0][1],
+                'weightN' : out.data[0][0],
+                'probPos' : probPos,
+                'probNeg' : probNeg,
+                'prediction' : 1 if probPos > probNeg else 0,
+        }
