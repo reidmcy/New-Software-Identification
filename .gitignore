@@ -1,4 +1,7 @@
+*.csv
+*.pt
 models/
+models_old/
 Assignment-3 alias
 InitialResults/
 

@@ -1,0 +1,47 @@
+Loading W2V
+Loading DF
+Generating training and testing sets
+Generating word vectors
+Saving test-train data
+Training: 22039 postive, 43908 negative, 0.334 percent
+Testing: 2386 postive, 4942 negative, 0.326 percent
+Epoch 0, loss 1.163, error 0.320, detectionRate 0.019, falseP 0.001
+Epoch 1, loss 0.376, error 0.113, detectionRate 0.966, falseP 0.152
+Epoch 2, loss 0.440, error 0.209, detectionRate 0.663, falseP 0.147
+Epoch 3, loss 0.309, error 0.104, detectionRate 0.966, falseP 0.139
+Epoch 4, loss 0.443, error 0.200, detectionRate 0.395, falseP 0.004
+Epoch 5, loss 0.198, error 0.068, detectionRate 0.856, falseP 0.032
+Epoch 6, loss 0.186, error 0.072, detectionRate 0.965, falseP 0.090
+Epoch 7, loss 0.155, error 0.049, detectionRate 0.958, falseP 0.052
+Epoch 8, loss 0.160, error 0.055, detectionRate 0.966, falseP 0.065
+Epoch 9, loss 0.140, error 0.042, detectionRate 0.919, falseP 0.023
+Epoch 10, loss 0.224, error 0.072, detectionRate 0.798, falseP 0.010
+Epoch 11, loss 0.176, error 0.062, detectionRate 0.961, falseP 0.073
+Epoch 12, loss 0.132, error 0.039, detectionRate 0.945, falseP 0.032
+Epoch 13, loss 0.198, error 0.067, detectionRate 0.962, falseP 0.082
+Epoch 14, loss 0.116, error 0.038, detectionRate 0.925, falseP 0.020
+Epoch 15, loss 0.115, error 0.037, detectionRate 0.962, falseP 0.037
+Epoch 16, loss 0.122, error 0.038, detectionRate 0.929, falseP 0.021
+Epoch 17, loss 0.144, error 0.051, detectionRate 0.973, falseP 0.062
+Epoch 18, loss 0.139, error 0.053, detectionRate 0.986, falseP 0.072
+Epoch 19, loss 0.108, error 0.034, detectionRate 0.951, falseP 0.026
+Epoch 20, loss 0.114, error 0.038, detectionRate 0.968, falseP 0.040
+Epoch 21, loss 0.311, error 0.123, detectionRate 0.660, falseP 0.018
+Epoch 22, loss 0.140, error 0.047, detectionRate 0.928, falseP 0.035
+Epoch 23, loss 0.132, error 0.043, detectionRate 0.943, falseP 0.037
+Epoch 24, loss 0.138, error 0.048, detectionRate 0.964, falseP 0.055
+Epoch 25, loss 0.114, error 0.036, detectionRate 0.941, falseP 0.025
+Epoch 26, loss 0.110, error 0.035, detectionRate 0.947, falseP 0.026
+Epoch 27, loss 0.118, error 0.042, detectionRate 0.943, falseP 0.035
+Epoch 28, loss 0.127, error 0.042, detectionRate 0.969, falseP 0.048
+Epoch 29, loss 0.116, error 0.037, detectionRate 0.930, falseP 0.021
+Epoch 30, loss 0.104, error 0.035, detectionRate 0.971, falseP 0.037
+Epoch 31, loss 0.119, error 0.037, detectionRate 0.933, falseP 0.022
+Epoch 32, loss 0.186, error 0.063, detectionRate 0.819, falseP 0.006
+Epoch 33, loss 0.178, error 0.066, detectionRate 0.813, falseP 0.008
+Epoch 34, loss 0.097, error 0.033, detectionRate 0.948, falseP 0.023
+Epoch 35, loss 0.104, error 0.035, detectionRate 0.930, falseP 0.017
+Epoch 36, loss 0.102, error 0.030, detectionRate 0.970, falseP 0.031
+Epoch 37, loss 0.116, error 0.039, detectionRate 0.974, falseP 0.045
+Epoch 38, loss 0.106, error 0.037, detectionRate 0.983, falseP 0.046
+^CExiting Testing: 35%   

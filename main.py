@@ -18,8 +18,8 @@ import pickle
 dataDir = 'data'
 modelsDir = 'models'
 
-rawFname = 'Stats-journs.tsv'
-manualFname = 'classified.yaml'
+rawFname = 'combined.csv'
+manualFname = None
 
 w2vFname = 'word2vec.bin'
 pickleFname = 'dfPickles.p'
@@ -35,8 +35,11 @@ def main():
 
     df, w2v = utilities.preprocesing(dataDir, rawFname, modelsDir, w2vFname, pickleFname, regen = regenW2V)
 
-
     dfTrain, dfTest = utilities.getTrainTest(df, dataDir, manualFname, w2v)
+
+    print("Saving test-train data")
+    dfTest[['authors', 'title', 'eid']].to_csv('test.csv')
+    dfTrain[['authors', 'title', 'eid']].to_csv('train.csv')
 
     Net = neuralnet.BiRNN(200, 256, 2, eta, modelsDir)
 

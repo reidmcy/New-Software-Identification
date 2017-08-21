@@ -29,9 +29,10 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                 if j % (epochSize // 20) == 0:
                     print("Epoch {}, Training: {:.0f}%".format(i, (j / epochSize) * 100), end = '\r')
                 row = dfTrain.sample(n = 1).iloc[0]
-
-                abVec, tiVec, yVec = varsFromRow(row)
-
+                try:
+                    abVec, tiVec, yVec = utilities.varsFromRow(row)
+                except:
+                    import pdb; pdb.set_trace()
                 optimizer.zero_grad()
                 outputs = N(abVec, tiVec)
                 loss = torch.nn.functional.cross_entropy(outputs, yVec)
@@ -49,7 +50,7 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
 
                 row = dfTest.iloc[j]
 
-                abVec, tiVec, yVec = varsFromRow(row)
+                abVec, tiVec, yVec = utilities.varsFromRow(row)
 
                 outputs = N(abVec, tiVec)
 
