@@ -29,7 +29,7 @@ class BiRNN(torch.nn.Module):
     def forward(self, ab, ti):
         #Reading abstract and title
         outAb, _ = self.lstmAb(ab)
-        outTi, _ = self.lstmTi(ab)
+        outTi, _ = self.lstmTi(ti)
 
         #Combine final steps
         out = torch.cat([outAb[:, -1, :], outTi[:, -1, :]], dim = 1)

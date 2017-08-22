@@ -1,3 +1,5 @@
+
+
 *.csv
 *.pt
 models/
@@ -8,6 +10,7 @@ Assignment-3 alias
 InitialResults/
 outputs/
 
+!example/sample.csv
 *.bin
 *.gz
 
