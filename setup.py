@@ -13,6 +13,6 @@ if __name__ == '__main__':
         classifiers=[
             'Development Status :: 2 - Pre-Alpha',
             'Programming Language :: Python :: 3',
-            ]
+            ],
         install_requires=['pandas', 'numpy', 'gensim>=2.0.0', 'nltk'], #+pytorch
     )
