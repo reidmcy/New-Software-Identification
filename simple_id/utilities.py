@@ -7,6 +7,7 @@ import torch.optim
 import torch.nn
 import torch.autograd
 import torch.nn.functional
+import multiprocessing
 
 import pickle
 import os.path
@@ -82,7 +83,7 @@ def genWord2Vec(df, w2vDim):
         window = 5, #Might want to increase this
         min_count = 0,
         max_vocab_size = None,
-        workers = 8, #My machine has 8 hyperthreads TODO: Make dynamic
+        workers = multiprocessing.cpu_count(), #All the cores
         )
     return model
 
