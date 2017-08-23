@@ -8,6 +8,8 @@ import torch.nn
 import torch.autograd
 import torch.nn.functional
 import multiprocessing
+import matplotlib.pyplot as plt
+import seaborn
 
 import pickle
 import os.path
@@ -142,13 +144,13 @@ def getTrainTest(df, w2v, splitRatio = .1):
 
     return dfTrain.copy(), dfTest.copy()
 
-def compareRows(rows, N, useTitle = True):
+def compareRows(rows, N, w2v = None, useTitle = True):
     fig, axes = plt.subplots(figsize = (20,15),
                              nrows = len(rows) + 1,
                              gridspec_kw = {'height_ratios': [5] * len(rows) + [1]})
     aLst = []
     for i, row in enumerate(rows):
-        abVec, tiVec, yVec = varsFromRow(row)
+        abVec, tiVec, yVec = varsFromRow(row, w2v = w2v)
         if useTitle:
             outLSTM, (h_n, c_n) = N.lstmTi(tiVec)
             s = row['title']
@@ -171,7 +173,7 @@ def compareRows(rows, N, useTitle = True):
         axes[i].set_xticklabels([])
 
 
-    dfDiff = pandas.DataFrame(aLst[0] - aLst[1])
+    dfDiff = pandas.DataFrame([aLst[0][0], (aLst[0] - aLst[1])[0], aLst[1][0]], index= ['top', 'diff', 'bottom'])
     seaborn.heatmap(dfDiff, ax = axes[-1], xticklabels = [i if i in np.linspace(0, aLst[0].shape[1] - 1, num = 10, dtype='int') else '' for i in range(aLst[0].shape[1])])
     axes[-1].set_title('Difference in Final Output Vectors')
 

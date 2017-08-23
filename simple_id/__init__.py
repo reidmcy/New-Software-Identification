@@ -5,5 +5,6 @@ except ImportError:
 
 from .base import createClassifier, loadModel, analyseDF
 from .neuralnet import BiRNN
+from .utilities import compareRows, varsFromRow
 
 __version__ = '0.0.1'
