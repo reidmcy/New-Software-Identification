@@ -32,9 +32,11 @@ def createClassifier(df, nnWidth = 128, nnHeight = 2, stepSize = .001, w2vDim = 
                 outputsDir #Autosave location
                 )
 
+    tstart = time.time()
     e = trainModel(Net, dfTest, dfTrain, epochSize, numEpochs)
+    deltaT = time.time() - tstart
 
-    print("Done {} Epochs saving final model".format(Net.epoch))
+    print("Done {} Epochs in {:.0f}m {:.1f}s saving final model".format(Net.epoch, deltaT // 60, deltaT ``% 60))
     Net.save()
 
     if e is not None:
@@ -77,5 +79,5 @@ def analyseDF(df, model, w2vFname = 'word2vec.bin', outputsDir = 'models'):
     print("Done {} rows in {:.0f}m {:.1f}s, {:.1f}s per row".format(len(df),
                                                             deltaT // 60,
                                                             deltaT % 60,
-                                                            len(df) / deltaT).ljust(80))
+                                                            deltaT / len(df)).ljust(80))
     return pandas.DataFrame(results, index = indices)

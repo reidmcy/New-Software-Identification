@@ -28,6 +28,7 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
     try:
         for i in range(numEpochs):
             tstart = time.time()
+            tEpoch = tstart
             for j in range(epochSize):
                 if j % (epochSize // 20) == 0:
                     eta = (time.time() - tstart) / (j + 1) * (epochSize - j)
@@ -85,7 +86,8 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                 else:
                     falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
 
-            print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}".format(i, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate)).ljust(80))
+            delta = time.time() - tEpoch
+            print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}, in {:.0f}m {:.0f}s".format(i + 1, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate), delta // 60, delta % 60).ljust(80))
 
             N.epoch += 1
             N.save()

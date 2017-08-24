@@ -18,3 +18,4 @@ I also highly recommend installing [Cuda](https://developer.nvidia.com/cuda-down
 + Make training easily resumable
 + Add attention to the model
 + Improve example code and analysis notebook
++ Allow more control of print statements e.g. `--verbose`
