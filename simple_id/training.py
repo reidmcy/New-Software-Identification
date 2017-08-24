@@ -79,12 +79,19 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                 losses.append(loss.data[0])
                 pred = outputs.data.max(1)[1]
 
-                errs.append(1 - pred.eq(yVec.data)[0][0])
-
-                if dfTest['class'][j] == 1:
-                    detectionRate.append(pred.eq(yVec.data)[0][0])
+                if torch.cuda.is_available():
+                    errs.append(1 - pred.eq(yVec.data)[0][0])
+                    if dfTest['class'][j] == 1:
+                        detectionRate.append(pred.eq(yVec.data)[0][0])
+                    else:
+                        falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
                 else:
-                    falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
+                    errs.append(1 - pred.eq(yVec.data)[0])
+                    if dfTest['class'][j] == 1:
+                        detectionRate.append(pred.eq(yVec.data)[0])
+                    else:
+                        falsePositiveRate.append(1 - pred.eq(yVec.data)[0])
+
 
             delta = time.time() - tEpoch
             print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}, in {:.0f}m {:.0f}s".format(i + 1, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate), delta // 60, delta % 60).ljust(80))
