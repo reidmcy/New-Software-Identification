@@ -62,9 +62,9 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
             tstart = time.time()
             for j in range(nTest):
                 if j % (nTest // 20) == 0:
-                    eta = (time.time() - tstart) / (j + 1) * (epochSize - j)
+                    eta = (time.time() - tstart) / (j + 1) * (nTest - j)
                     print("Testing {}: {:.1f}%, ETA {:.0f}m {:.1f}s".format(j,
-                                                    j / epochSize * 100,
+                                                    j / nTest * 100,
                                                     eta // 60,
                                                     eta % 60).ljust(80)
                                                    ,end = '\r')
@@ -91,7 +91,6 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                         detectionRate.append(pred.eq(yVec.data)[0])
                     else:
                         falsePositiveRate.append(1 - pred.eq(yVec.data)[0])
-
 
             delta = time.time() - tEpoch
             print("Epoch {}, loss {:.3f}, error {:.3f}, detectionRate {:.3f}, falseP {:.3f}, in {:.0f}m {:.0f}s".format(i + 1, np.mean(losses), np.mean(errs), np.mean(detectionRate),  np.mean(falsePositiveRate), delta // 60, delta % 60).ljust(80))
