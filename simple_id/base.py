@@ -36,7 +36,7 @@ def createClassifier(df, nnWidth = 128, nnHeight = 2, stepSize = .001, w2vDim = 
     e = trainModel(Net, dfTest, dfTrain, epochSize, numEpochs)
     deltaT = time.time() - tstart
 
-    print("Done {} Epochs in {:.0f}m {:.1f}s saving final model".format(Net.epoch, deltaT // 60, deltaT ``% 60))
+    print("Done {} Epochs in {:.0f}m {:.1f}s saving final model".format(Net.epoch, deltaT // 60, deltaT % 60))
     Net.save()
 
     if e is not None:
