@@ -21,8 +21,8 @@ def createClassifier(df, nnWidth = 128, nnHeight = 2, stepSize = .001, w2vDim = 
     dfTrain, dfTest = getTrainTest(df, w2v, splitRatio = .1)
 
     print("Saving test-train data")
-    dfTest[['authors', 'title', 'class']].to_csv("{}/{}".format(outputsDir, testFname))
-    dfTrain[['authors', 'title', 'class']].to_csv("{}/{}".format(outputsDir, trainFname))
+    dfTest[['source', 'title', 'class']].to_csv("{}/{}".format(outputsDir, testFname))
+    dfTrain[['source', 'title', 'class']].to_csv("{}/{}".format(outputsDir, trainFname))
 
     #TODO: Test other NN sizes
     Net = BiRNN(w2vDim, #W2V size

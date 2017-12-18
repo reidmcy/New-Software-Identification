@@ -89,7 +89,7 @@ def genWord2Vec(df, w2vDim):
         )
     return model
 
-def preprocesing(df, outputsDir, w2vFname, pickleFname, w2vDim):
+def preprocesing(df, outputsDir, w2vFname, pickleFname, w2vDim, useFeather = False):
 
     picklePath = '{}/{}'.format(outputsDir, pickleFname)
     w2vPath = '{}/{}'.format(outputsDir, w2vFname)
