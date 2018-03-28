@@ -41,6 +41,7 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
                 try:
                     abVec, tiVec, yVec = varsFromRow(row)
                 except:
+                    raise
                     #TODO: Remove this or make it nicer
                     print()
                     print("Error encountered entering debugger")
@@ -81,13 +82,13 @@ def trainModel(N, dfTest, dfTrain, epochSize, numEpochs):
 
                 if torch.cuda.is_available():
                     errs.append(1 - pred.eq(yVec.data)[0][0])
-                    if dfTest['class'][j] == 1:
+                    if dfTest['class'].iloc[j] == 1:
                         detectionRate.append(pred.eq(yVec.data)[0][0])
                     else:
                         falsePositiveRate.append(1 - pred.eq(yVec.data)[0][0])
                 else:
                     errs.append(1 - pred.eq(yVec.data)[0])
-                    if dfTest['class'][j] == 1:
+                    if dfTest['class'].iloc[j] == 1:
                         detectionRate.append(pred.eq(yVec.data)[0])
                     else:
                         falsePositiveRate.append(1 - pred.eq(yVec.data)[0])

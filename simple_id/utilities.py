@@ -21,7 +21,8 @@ def tokenizer(target):
     try:
         return nltk.word_tokenize(str(target).lower())
     except:
-        import pdb; pdb.set_trace()
+        raise
+        #import pdb; pdb.set_trace()
 
 def sentinizer(sent):
     try:
@@ -89,32 +90,62 @@ def genWord2Vec(df, w2vDim):
         )
     return model
 
-def preprocesing(df, outputsDir, w2vFname, pickleFname, w2vDim, useFeather = False):
+def abSplitter(ab):
+    try:
+        return [s.split(' ') for s in ab.split('|')]
+    except AttributeError:
+        return []
 
-    picklePath = '{}/{}'.format(outputsDir, pickleFname)
+def saveFeather(df, savePath):
+    df = df.copy()
+    try:
+        df = df.reset_index()
+    except ValueError:
+        pass
+    df['title_tokens'] = df['title_tokens'].apply(lambda x: ' '.join(x))
+    df['abstract_tokens'] = df['abstract_tokens'].apply(lambda x: '|'.join([' '.join(s) for s in x]))
+    print("Saving DF with feather")
+    df.to_feather(savePath)
+
+def readFeather(targetPath):
+    df = pandas.read_feather(targetPath)
+    df['title_tokens'] = df['title_tokens'].apply(lambda x : x.split(' '))
+    df['abstract_tokens'] = df['abstract_tokens'].apply(abSplitter)
+    return df
+
+def preprocesing(df, outputsDir, w2vFname, saveFname, w2vDim, useFeather = False, saveDF = True):
+
+    picklePath = '{}/{}'.format(outputsDir, saveFname)
     w2vPath = '{}/{}'.format(outputsDir, w2vFname)
+    os.makedirs(outputsDir, exist_ok = True)
 
     if os.path.isfile(picklePath):
         print("Loading tokenized DF")
-        bytes_in = bytearray(0)
-        input_size = os.path.getsize(picklePath)
-        with open(picklePath, 'rb') as f:
-            for _ in range(0, input_size, max_bytes):
-                bytes_in += f.read(max_bytes)
-        df = pickle.loads(bytes_in)
+        if useFeather:
+            df = readFeather(picklePath)
+        else:
+            bytes_in = bytearray(0)
+            input_size = os.path.getsize(picklePath)
+            with open(picklePath, 'rb') as f:
+                for _ in range(0, input_size, max_bytes):
+                    bytes_in += f.read(max_bytes)
+            df = pickle.loads(bytes_in)
     else:
         print("Tokenizing Titles")
         df['title_tokens'] = df['title'].apply(tokenizer)
 
         print("Tokenizing Abstracts")
         df['abstract_tokens'] = df['abstract'].apply(sentinizer)
-
-        print("Saving DF as pickle")
-        bytes_out = pickle.dumps(df)
-        n_bytes = len(bytes_out)
-        with open(picklePath, 'wb') as f:
-            for idx in range(0, n_bytes, max_bytes):
-                f.write(bytes_out[idx:idx+max_bytes])
+        if useFeather and saveDF:
+            print("Prepping DF for feather")
+            saveFeather(df, picklePath)
+        elif saveDF:
+            print("Saving DF as pickle")
+            bytes_out = pickle.dumps(df)
+            n_bytes = len(bytes_out)
+            with open(picklePath, 'wb') as f:
+                for idx in range(0, n_bytes, max_bytes):
+                    f.write(bytes_out[idx:idx+max_bytes])
 
     if os.path.isfile(w2vPath):
         print("Loading W2V model")
@@ -125,11 +156,17 @@ def preprocesing(df, outputsDir, w2vFname, pickleFname, w2vDim, useFeather = Fal
         w2v.save(w2vPath)
     return df, w2v
 
+def genWordVecs(df, w2v):
+    df['title_vecs'] = df['title_tokens'].apply(lambda x : genVecSeq(x, w2v))
+    df['abstract_vecs'] = df['abstract_tokens'].apply(lambda x : genVecSeq(x, w2v))
+
+    return df
+
 def getTrainTest(df, w2v, splitRatio = .1):
     print("Generating training and testing sets")
 
     dfClassified = df[df['class'] == 1]
-    dfClassified = dfClassified.append(df[df['class'] == 0].sample(int(len(dfClassified) * 2)))
+    dfClassified = dfClassified.append(df[df['class'] == 0].sample(min([int(len(dfClassified) * 2), len(df[df['class'] == 0])])))
     dfClassified.index = range(len(dfClassified))
 
     print("Generating word vectors")
@@ -144,7 +181,7 @@ def getTrainTest(df, w2v, splitRatio = .1):
 
     return dfTrain.copy(), dfTest.copy()
 
-def compareRows(rows, N, w2v = None, useTitle = True):
+def compareRows(rows, N, w2v = None, useTitle = True, maxLen = 30):
     fig, axes = plt.subplots(figsize = (20,15),
                              nrows = len(rows) + 1,
                              gridspec_kw = {'height_ratios': [5] * len(rows) + [1]})
@@ -165,7 +202,7 @@ def compareRows(rows, N, w2v = None, useTitle = True):
 
         a = np.array(outLSTM.data.tolist())
         aLst.append(a[0, -1:, :])
-        a = a[:,:30,:]
+        a = a[:,:maxLen,:]
         df = pandas.DataFrame(a[0, :, :])
         df.index = nltk.word_tokenize(s)[:a.shape[1]]
         seaborn.heatmap(df, ax = axes[i])
